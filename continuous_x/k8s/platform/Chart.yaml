@@ -1,0 +1,4 @@
+apiVersion: v2
+name: code-reviewer-platform-project32
+version: 1.0.0
+description: Project32 Platform Services for Code Review Bot

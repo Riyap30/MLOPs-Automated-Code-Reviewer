@@ -1,0 +1,139 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: train-model
+spec:
+  entrypoint: full-pipeline
+
+  arguments:
+    parameters:
+    - name: model-version
+      value: "v1.0.0"
+
+  volumeClaimTemplates:
+  - metadata:
+      name: workdir
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 2Gi
+
+  templates:
+  - name: full-pipeline
+    steps:
+      - - name: generate-version
+          template: generate-version
+      - - name: trigger-training-endpoint
+          template: call-endpoint
+          arguments:
+            parameters:
+            - name: model-version
+              value: "{{steps.generate-version.outputs.parameters.version}}"
+      - - name: trigger-build
+          template: trigger-build
+          arguments:
+            parameters:
+            - name: model-version
+              value: "{{steps.generate-version.outputs.parameters.version}}"
+      - - name: promote-to-canary
+          template: promote-model
+          arguments:
+            parameters:
+            - name: source-environment
+              value: staging
+            - name: target-environment
+              value: canary
+            - name: model-version
+              value: "{{steps.generate-version.outputs.parameters.version}}"
+      - - name: promote-to-prod
+          template: promote-model
+          arguments:
+            parameters:
+            - name: source-environment
+              value: canary
+            - name: target-environment
+              value: prod
+            - name: model-version
+              value: "{{steps.generate-version.outputs.parameters.version}}"
+
+  - name: generate-version
+    container:
+      image: alpine:3.18
+      command: [sh, -c]
+      args:
+        - |
+          VERSION="v1.0.0-$(date +%Y%m%d%H%M%S)"
+          mkdir -p /tmp/version
+          echo "$VERSION" > /tmp/version/version.txt
+          echo "$VERSION"
+      volumeMounts:
+      - name: workdir
+        mountPath: /tmp/version
+    outputs:
+      parameters:
+      - name: version
+        valueFrom:
+          path: /tmp/version/version.txt
+
+  - name: call-endpoint
+    inputs:
+      parameters:
+      - name: model-version
+    container:
+      image: curlimages/curl:7.85.0
+      command: [sh, -c]
+      args:
+        - |
+          echo "Triggering training endpoint for version {{inputs.parameters.model-version}}..."
+          # Example: Uncomment and replace below with real endpoint
+          # curl -X POST https://your-training-service/train \
+          #      -H "Content-Type: application/json" \
+          #      -d '{"version": "{{inputs.parameters.model-version}}"}'
+      volumeMounts:
+      - name: workdir
+        mountPath: /tmp
+
+  - name: trigger-build
+    inputs:
+      parameters:
+      - name: model-version
+    resource:
+      action: create
+      manifest: |
+        apiVersion: argoproj.io/v1alpha1
+        kind: Workflow
+        metadata:
+          generateName: build-container-image-
+        spec:
+          workflowTemplateRef:
+            name: build-container-image
+          arguments:
+            parameters:
+            - name: model-version
+              value: "{{inputs.parameters.model-version}}"
+
+  - name: promote-model
+    inputs:
+      parameters:
+      - name: source-environment
+      - name: target-environment
+      - name: model-version
+    resource:
+      action: create
+      manifest: |
+        apiVersion: argoproj.io/v1alpha1
+        kind: Workflow
+        metadata:
+          generateName: promote-model-
+        spec:
+          workflowTemplateRef:
+            name: promote-model
+          arguments:
+            parameters:
+            - name: source-environment
+              value: "{{inputs.parameters.source-environment}}"
+            - name: target-environment
+              value: "{{inputs.parameters.target-environment}}"
+            - name: model-version
+              value: "{{inputs.parameters.model-version}}"

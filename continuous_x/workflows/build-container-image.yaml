@@ -1,0 +1,63 @@
+# build-container-image.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: build-container-image
+spec:
+  entrypoint: kaniko-build-flow
+
+  arguments:
+    parameters:
+    - name: model-version
+      value: "latest"
+
+  volumeClaimTemplates:
+  - metadata:
+      name: workdir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 2Gi
+
+  templates:
+  - name: kaniko-build-flow
+    steps:
+      - - name: clone-repo
+          template: git-clone
+      - - name: kaniko-build
+          template: kaniko
+
+  - name: git-clone
+    container:
+      image: alpine/git:2.43.0
+      command: [/bin/sh, -c]
+      args:
+        - |
+          MAX_RETRIES=5
+          i=1
+          while [ $i -le $MAX_RETRIES ]; do
+            git clone --branch main https://github.com/BugBeak/MLOps.git /mnt/workspace && break
+            i=$((i + 1))
+            sleep 5
+          done
+          
+          if [ $i -gt $MAX_RETRIES ]; then
+            echo "Failed to clone repository after $MAX_RETRIES attempts"
+            exit 1
+          fi
+      volumeMounts:
+      - name: workdir
+        mountPath: /mnt/workspace
+
+  - name: kaniko
+    container:
+      image: gcr.io/kaniko-project/executor:v1.23.0
+      args:
+        - --dockerfile=/mnt/workspace/Dockerfile
+        - --context=/mnt/workspace
+        - --destination=registry.kube-system.svc.cluster.local:5000/code-reviewer-app:{{workflow.parameters.model-version}}
+        - --insecure
+      volumeMounts:
+      - name: workdir
+        mountPath: /mnt/workspace

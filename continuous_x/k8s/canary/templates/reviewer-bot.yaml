@@ -1,0 +1,39 @@
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reviewer-bot
+  namespace: code-reviewer-canary-project32
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: reviewer-bot
+  template:
+    metadata:
+      labels:
+        app: reviewer-bot
+    spec:
+      containers:
+        - name: reviewer-bot
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          ports:
+            - containerPort: 8000
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: reviewer-bot
+  namespace: code-reviewer-canary-project32
+spec:
+  selector:
+    app: reviewer-bot
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+  externalIPs:
+    - {{ .Values.service.externalIP }}

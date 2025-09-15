@@ -1,0 +1,35 @@
+# config.yaml
+github_repositories:
+  - "jenkinsci/git-client-plugin"
+  - "kubernetes/kubernetes"
+  - "prometheus/prometheus"
+  - "etcd-io/etcd"
+  - "microsoft/vscode"
+  - "vercel/next.js"
+  - "etcd-io/etcd"
+  - "microsoft/vscode"
+  - "facebook/react"
+  - "electron/electron"
+  - "tensorflow/tensorflow"
+  - "apache/kafka"
+  - "angular/angular"
+  - "apache/arrow"
+  - "jaegertracing/jaeger"
+  - "grafana/grafana"
+
+
+# Other config...
+data_paths:
+  raw: "object-persist-group32/data/raw/"
+  processed: "object-persist-group32/data/processed/"
+  metadata: "object-persist-group32/data/metadata/" # Path for processed_prs.log relative to RCLONE_REMOTE base
+  remote_raw_data_base: "object-persist-group32/data/raw/"
+rclone_remote_name: "chi_tacc" # Name of your rclone remote configured with rclone
+
+# Heuristics/Filters for discovering PRs
+filters:
+  min_comments: 3 # Minimum number of review comments a PR must have
+  state: "merged" # Fetch PRs with this state ("open", "closed", "merged", "all")
+
+online_evaluation:
+  handoff_storage_path: "/path/to/your/block_storage_or_shared_dir_for_inference_queue/"
